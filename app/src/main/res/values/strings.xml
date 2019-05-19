@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CameraX Demo</string>
+    <string name="take_a_picture">Take a Picture</string>
+</resources>
