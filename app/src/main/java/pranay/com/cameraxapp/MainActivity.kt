@@ -8,15 +8,17 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
-import android.util.Log
-import android.util.Rational
-import android.util.Size
+import android.util.*
 import android.view.Surface
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.camera.core.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.firebase.ml.vision.FirebaseVision
+import com.google.firebase.ml.vision.common.FirebaseVisionImage
+import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
+import com.google.firebase.ml.vision.text.FirebaseVisionText
 import kotlinx.android.synthetic.main.activity_main.*
 import java.io.File
 import java.nio.ByteBuffer
@@ -49,11 +51,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun startCameraForCapture()
     {
+        // pull the metrics from our TextureView
+        val metrics = DisplayMetrics().also { textureView.display.getRealMetrics(it) }
+// define the screen size
+        val screenSize = Size(metrics.widthPixels, metrics.heightPixels)
+        val screenAspectRatio = Rational(metrics.widthPixels, metrics.heightPixels)
+
+
         //====================== Image Preview Config code Start==========================
         // Create configuration object for the viewfinder use case
         val previewConfig=PreviewConfig.Builder().apply {
-            setTargetAspectRatio(Rational(1,1))
-            setTargetResolution(Size(640,640))
+            setTargetAspectRatio(screenAspectRatio)
+            setTargetResolution(screenSize)
+            setLensFacing(CameraX.LensFacing.BACK)
         }.build()
 
         // Build the viewfinder use case
@@ -78,6 +88,8 @@ class MainActivity : AppCompatActivity() {
             // select a capture mode which will infer the appropriate
             // resolution based on aspect ration and requested mode
             setCaptureMode(ImageCapture.CaptureMode.MIN_LATENCY)
+            setLensFacing(CameraX.LensFacing.BACK)
+
         }.build()
 
         // Build the viewfinder use case
@@ -106,16 +118,35 @@ class MainActivity : AppCompatActivity() {
         // Setup image analysis pipeline that computes average pixel luminance
         val analyzerConfig = ImageAnalysisConfig.Builder().apply {
             // Use a worker thread for image analysis to prevent glitches
-            val analyzerThread = HandlerThread("AnalysisThread").apply {
+            val analyzerThread = HandlerThread("OCR").apply {
                 start()
             }
             setCallbackHandler(Handler(analyzerThread.looper))
             setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
         }.build()
 
-        val analyzerUseCase = ImageAnalysis(analyzerConfig).apply {
-            analyzer=LuminosityAnalyzer()
+        val valueToFind="CameraX"
+         val analyzerUseCase = ImageAnalysis(analyzerConfig).apply {
+         }
+        analyzerUseCase.analyzer=TextAnalyzer(valueToFind){
+            val file = File(externalMediaDirs.first(),"${System.currentTimeMillis()}.jpg")
+            imageCapture.takePicture(file,object :ImageCapture.OnImageSavedListener{
+                override fun onImageSaved(file: File) {
+                    val msg = "Photo capture succeeded: ${file.absolutePath}"
+                    msg.toast()
+                }
+
+                override fun onError(useCaseError: ImageCapture.UseCaseError, message: String, cause: Throwable?) {
+                    val msg = "Photo capture failed: $message"
+                    msg.toast()
+                    cause?.printStackTrace()
+                }
+            })
         }
+
+        /*val analyzerUseCase = TextAnalyzer(analyzerConfig).apply {
+            analyzer=LuminosityAnalyzer()
+        }*/
 
         //====================== Image Analysis Config code End==========================
 
@@ -222,6 +253,67 @@ class MainActivity : AppCompatActivity() {
                 Log.d( "CameraX Demo" , "Average luminosity: $luma")
                 // Update timestamp of last analyzed frame
                 lastAnalyzedTimestamp = currentTimestamp
+            }
+        }
+    }
+
+
+    internal class TextAnalyzer(
+        private val identifier: String,
+        private val identifierDetectedCallback: () -> Unit
+    ) : ImageAnalysis.Analyzer {
+
+        companion object {
+            private val ORIENTATIONS = SparseIntArray()
+
+            init {
+                ORIENTATIONS.append(0, FirebaseVisionImageMetadata.ROTATION_0)
+                ORIENTATIONS.append(90, FirebaseVisionImageMetadata.ROTATION_90)
+                ORIENTATIONS.append(180, FirebaseVisionImageMetadata.ROTATION_180)
+                ORIENTATIONS.append(270, FirebaseVisionImageMetadata.ROTATION_270)
+            }
+        }
+
+        private var lastAnalyzedTimestamp = 0L
+
+
+        private fun getOrientationFromRotation(rotationDegrees: Int): Int {
+            return when (rotationDegrees) {
+                0 -> FirebaseVisionImageMetadata.ROTATION_0
+                90 -> FirebaseVisionImageMetadata.ROTATION_90
+                180 -> FirebaseVisionImageMetadata.ROTATION_180
+                270 -> FirebaseVisionImageMetadata.ROTATION_270
+                else -> FirebaseVisionImageMetadata.ROTATION_90
+            }
+        }
+
+        override fun analyze(image: ImageProxy?, rotationDegrees: Int) {
+            if (image?.image == null || image.image == null) return
+
+            val timestamp = System.currentTimeMillis()
+            // only run once per second
+            if (timestamp - lastAnalyzedTimestamp >= TimeUnit.SECONDS.toMillis(1)) {
+                val visionImage = FirebaseVisionImage.fromMediaImage(
+                    image.image!!,
+                    getOrientationFromRotation(rotationDegrees)
+                )
+
+                val detector = FirebaseVision.getInstance()
+                    .onDeviceTextRecognizer
+
+                detector.processImage(visionImage)
+                    .addOnSuccessListener { result: FirebaseVisionText ->
+                        // remove the new lines and join to a single string,
+                        // then search for our identifier
+                        val textToSearch = result.text.split("\n").joinToString(" ")
+                        if (textToSearch.contains(identifier, true)) {
+                            identifierDetectedCallback()
+                        }
+                    }
+                    .addOnFailureListener {
+                        Log.e("", "Error processing image", it)
+                    }
+                lastAnalyzedTimestamp = timestamp
             }
         }
     }
