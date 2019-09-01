@@ -2,6 +2,7 @@ package pranay.com.cameraxapp
 
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Matrix
 import androidx.appcompat.app.AppCompatActivity
@@ -122,18 +123,23 @@ class MainActivity : AppCompatActivity() {
                 start()
             }
             setCallbackHandler(Handler(analyzerThread.looper))
+            // we only care about the latest image in the buffer,
             setImageReaderMode(ImageAnalysis.ImageReaderMode.ACQUIRE_LATEST_IMAGE)
+            setTargetResolution(Size(1280, 720))
         }.build()
 
         val valueToFind="CameraX"
-         val analyzerUseCase = ImageAnalysis(analyzerConfig).apply {
-         }
+         val analyzerUseCase = ImageAnalysis(analyzerConfig)
         analyzerUseCase.analyzer=TextAnalyzer(valueToFind){
             val file = File(externalMediaDirs.first(),"${System.currentTimeMillis()}.jpg")
             imageCapture.takePicture(file,object :ImageCapture.OnImageSavedListener{
                 override fun onImageSaved(file: File) {
                     val msg = "Photo capture succeeded: ${file.absolutePath}"
                     msg.toast()
+                    val intent = Intent(this@MainActivity,PreviewActivity::class.java).apply {
+                        putExtra(PreviewActivity.FILE_PATH,file.absolutePath)
+                    }
+                    startActivity(intent)
                 }
 
                 override fun onError(useCaseError: ImageCapture.UseCaseError, message: String, cause: Throwable?) {
