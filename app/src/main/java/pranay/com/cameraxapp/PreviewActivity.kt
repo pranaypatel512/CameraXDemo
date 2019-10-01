@@ -1,7 +1,7 @@
 package pranay.com.cameraxapp
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import coil.api.load
 import kotlinx.android.synthetic.main.activity_preview.*
 import java.io.File
@@ -15,6 +15,7 @@ class PreviewActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_preview)
 
+        supportActionBar?.setDisplayShowHomeEnabled(true)
         imageViewPreview.load(File(intent.extras?.getString(FILE_PATH)))
 
     }

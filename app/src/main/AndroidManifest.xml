@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="pranay.com.cameraxapp">
 
+    <uses-permission android:name="android.permission.CAMERA" />
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -11,7 +12,9 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         tools:ignore="AllowBackup,GoogleAppIndexingWarning">
-        <activity android:name=".PreviewActivity"/>
+        <activity
+            android:name=".PreviewActivity"
+            android:label="Preview" />
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -21,6 +24,5 @@
         </activity>
     </application>
 
-    <uses-permission android:name="android.permission.CAMERA" />
 
 </manifest>

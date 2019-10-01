@@ -47,6 +47,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-ml-vision:23.0.0'
     implementation 'com.google.firebase:firebase-core:17.2.0'
     implementation("io.coil-kt:coil:0.6.1")
+    def camerax_ext_version = "1.0.0-alpha01"
+    implementation "androidx.camera:camera-extensions:$camerax_ext_version"
 
 }
 apply plugin: 'com.google.gms.google-services'
